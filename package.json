@@ -1,5 +1,5 @@
 {
-  "name": "@qin/types-generator",
+  "name": "@qinzisong/types-generator",
   "version": "0.0.1",
   "description": "Generate Typescript types from a MySQL database",
   "main": "dist/index.js",
