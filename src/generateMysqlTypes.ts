@@ -4,8 +4,9 @@ import * as mysql from 'mysql2/promise';
 
 import { getColumnDataType } from './getColumnDataType';
 import { writeToFile } from './writeToFile';
+import { getTypeName as _getTypeName, GetTypeName } from './getTypeName';
 import type { SslOptions } from 'mysql2';
-import { Generator, getSimpleGenerator, Column } from './generator';
+import { Generator, createGenerator, Column } from './generator';
 import { COLUMNS } from './information-schema/COLUMNS';
 import micromatch = require('micromatch');
 
@@ -51,26 +52,15 @@ export type GenerateMysqlTypesConfig = {
   ignoreTables?: string[];
   includeTables?: string[];
   tinyintIsBoolean?: boolean;
-  getTypeName?: (table: string) => string;
+  getTypeName?: GetTypeName;
   generator?: Generator;
   warningHeader?: string;
 };
 
-function defaultGetTypeName(table: string) {
-  return `${table
-    .split('_')
-    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('')}`;
-}
-
 export const generateMysqlTypes = async (config: GenerateMysqlTypesConfig) => {
   const tinyintIsBoolean = config.tinyintIsBoolean ?? false;
-  // const getTypeName = config.getTypeName ?? defaultGetTypeName;
   const getTypeName = (table: string) => {
-    if (config.getTypeName) {
-      return config.getTypeName(table);
-    }
-    return defaultGetTypeName(table) + (config.suffix ?? '');
+    return _getTypeName(table, config.getTypeName);
   };
 
   const tables = await getTables(config);
@@ -87,7 +77,7 @@ export const generateMysqlTypes = async (config: GenerateMysqlTypesConfig) => {
     emptyOutputPath(config.output.dir, 'dir');
   }
 
-  const generator = config.generator ?? getSimpleGenerator({});
+  const generator = config.generator ?? createGenerator({});
 
   // loop through each table
   for (const { table, tableComment, columns } of tables) {
@@ -220,7 +210,7 @@ const emptyOutputPath = (outputPath: string, outputType: 'file' | 'dir') => {
   }
 };
 
-const output = async (outputPathOrStream: string | fs.WriteStream | NodeJS.WritableStream, content: string, warningHeader?:string) => {
+const output = async (outputPathOrStream: string | fs.WriteStream | NodeJS.WritableStream, content: string, warningHeader?: string) => {
   if (typeof outputPathOrStream === 'string') {
     await writeToFile(outputPathOrStream, content, warningHeader);
   } else {

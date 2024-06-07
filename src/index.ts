@@ -1,2 +1,2 @@
 export { generateMysqlTypes, GetTables, GenerateMysqlTypesConfig, ConnectionConfig } from './generateMysqlTypes';
-export { getSimpleGenerator } from './generator';
+export { createGenerator, GetColumnDataType, FormatColumn, FormatType, Generator, defaultFormatColumn, defaultFormatType } from './generator';

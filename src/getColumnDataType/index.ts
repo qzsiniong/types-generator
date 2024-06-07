@@ -1,6 +1,25 @@
-export const getColumnDataType = (dataType: string | null, columnType: string, tinyintIsBoolean: boolean): string => {
-  if (columnType === null) {
+import { getColumnDataType_EnumFromComment } from './getColumnDataType_EnumFromComment';
+
+export type GetColumnDataTypeContext = {
+  dataType: string | null;
+  columnType: string;
+  columnComment: string;
+  is_nullable: boolean;
+  tinyintIsBoolean: boolean;
+  table: string;
+  column: string | null;
+};
+export type ColumnDataTypeResult = string | { type: string; comment?: string };
+
+export const getColumnDataType = async (ctx: GetColumnDataTypeContext): Promise<ColumnDataTypeResult> => {
+  const { dataType, columnType, tinyintIsBoolean } = ctx;
+  if (dataType === null) {
     throw new Error('The DATA_TYPE field in information_schema should never be null. This may be a bug');
+  }
+
+  const r = await getColumnDataType_EnumFromComment(ctx);
+  if (r) {
+    return r;
   }
 
   switch (dataType) {

@@ -1,5 +1,5 @@
-import { getColumnDataType } from './getColumnDataType';
-import { getFormat } from './utils';
+import { ColumnDataTypeResult, GetColumnDataTypeContext, getColumnDataType } from './getColumnDataType';
+// import { getFormat } from './utils';
 
 export type Column = {
   columnName: string;
@@ -21,69 +21,67 @@ type GeneratorContext = {
 type Awaitable<T> = Promise<T> | T;
 
 
-type CustomGetColumnDataTypeContext = {
-  dataType: string | null;
-  columnType: string;
-  is_nullable: boolean;
-  tinyintIsBoolean: boolean;
-  table: string;
-  column: string | null;
-}
 
-export type CustomGetColumnDataType = (ctx: CustomGetColumnDataTypeContext) => Awaitable<string | null | undefined>;
+export type GetColumnDataType = (ctx: GetColumnDataTypeContext) => Awaitable<ColumnDataTypeResult | null | undefined>;
+
+export type FormatColumn = (ctx: Record<'comment' | 'column' | 'type', string>) => string;
+export type FormatType = (ctx: { comment: string; typeName: string; fields: string }) => string;
 
 type Options = {
-  customGetColumnDataType?: CustomGetColumnDataType;
+  getColumnDataType?: GetColumnDataType;
+  formatColumn?: FormatColumn;
+  formatType?: FormatType;
 }
 
 export type Generator = (cxt: GeneratorContext) => Awaitable<string>;
 
-const formatColumn = getFormat<{ comment: string; column: string; type: string }>(
-  `
-
+export const defaultFormatColumn: FormatColumn = (ctx) => {
+  return `
   /**
-   * {{comment}}
+   * ${ctx.comment.split('\n').join('\n   * ')}
    */
-  {{column}}: {{type}};`
-);
+  ${ctx.column}: ${ctx.type};`;
+};
 
-const formatType = getFormat<{ comment: string; typeName: string; fields: string }>(
-  `
-/**
- * {{comment}}
+export const defaultFormatType: FormatType = (ctx) => {
+  return `/**
+ * ${ctx.comment}
  */
-export type {{typeName}} = {
-{{fields}}
+export type ${ctx.typeName} = {
+${ctx.fields}
 }
+`;
+};
 
-`
-);
-
-export function getSimpleGenerator(options: Options): Generator {
-  const { customGetColumnDataType } = options;
+export function createGenerator(options: Options): Generator {
+  const { getColumnDataType: customGetColumnDataType, formatColumn = defaultFormatColumn, formatType = defaultFormatType } = options;
 
   return async function (cxt: GeneratorContext) {
     const { table, tableComment, typeName, columns, getColumnDataType, tinyintIsBoolean } = cxt;
 
     const list = columns.map(async (column) => {
-      let type = await customGetColumnDataType?.({
+      const ctx: GetColumnDataTypeContext = {
         table,
         column: column.columnName,
         dataType: column.dataType,
         columnType: column.columnType,
+        columnComment: column.columnComment,
         is_nullable: column.isNullable,
         tinyintIsBoolean,
-      });
+      };
+      let type = await customGetColumnDataType?.(ctx);
 
       if (type === undefined || type === null) {
-        type = getColumnDataType(column.dataType, column.columnType, tinyintIsBoolean);
-        type += column.isNullable ? ' | null' : '';
+        type = await getColumnDataType(ctx);
       }
 
+      const typeResult = typeof type === 'string' ? { type } : type;
+      typeResult.type += column.isNullable ? ' | null' : '';
+
       return formatColumn({
-        comment: column.columnComment.trim(),
+        comment: typeResult.comment ?? column.columnComment.trim(),
         column: column.columnName,
-        type,
+        type: typeResult.type,
       });
     });
     const lst = await Promise.all(list);
